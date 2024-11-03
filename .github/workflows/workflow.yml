@@ -1,0 +1,66 @@
+name: Dynamic Environment Creation - Test
+ 
+on:
+  workflow_dispatch:
+ 
+permissions:
+  contents: read
+  organization: read
+
+ 
+ 
+jobs:
+  dynamic-prepare-job:
+    runs-on:
+      group: rhel
+    outputs:
+      environment-name: ${{ steps.createOutput.outputs.environment-name }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+      - name: Create Approval Environment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const environmentName = `${repo}-test-environment`;  
+            const teamSlug = 'myteam'; 
+            const { data: teamInfo } = await github.rest.teams.getByName({ org: owner, team_slug: teamSlug });
+            console.log('Creating environment:', environmentName, 'with team:', teamInfo.name);
+            await github.rest.repos.createOrUpdateEnvironment({
+              owner,
+              repo,
+              environment_name: environmentName,
+              reviewers: [
+                {
+                  type: 'Team',
+                  id: teamInfo.id
+                }
+              ]
+            });
+            return { environmentName };
+        id: createEnvironment
+ 
+      - name: Create output
+        id: createOutput
+        run: echo "environment-name=${{ steps.createEnvironment.outputs.environmentName }}" >> $GITHUB_OUTPUT
+ 
+  cleanup-job:
+    needs: dynamic-prepare-job
+    runs-on: ubuntu-latest
+    if: always() 
+    steps:
+      - name: Delete Environment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const environmentName = `${repo}-test-environment`;
+            console.log('Deleting environment:', environmentName);
+            await github.rest.repos.deleteAnEnvironment({
+              owner,
+              repo,
+              environment_name: environmentName
+            });
