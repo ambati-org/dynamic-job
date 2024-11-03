@@ -9,8 +9,7 @@ permissions:
  
 jobs:
   dynamic-prepare-job:
-    runs-on:
-      group: rhel
+    runs-on: ubuntu-latest
     outputs:
       environment-name: ${{ steps.createOutput.outputs.environment-name }}
     steps:
